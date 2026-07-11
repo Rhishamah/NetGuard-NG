@@ -11,3 +11,6 @@ wheels/
 
 # jupyter checkpoint files
 .ipynb_checkpoints/
+
+# locally generated traffic data
+data/*.csv
