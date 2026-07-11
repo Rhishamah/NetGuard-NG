@@ -28,7 +28,7 @@ def main():
         if not file_exists:
             writer.writerow(["src_ip", "dst_ip", "protocol", "port", "flags", "size", "timestamp"])
         sniff(iface="wlp2s0", prn=lambda pkt: process_packet(writer, pkt),
-              store=False, count=40)
+              store=False, count=2000)
 
 if __name__ == "__main__":
     main()
