@@ -9,6 +9,8 @@ from api.database import Base, engine
 from api.models.alert import Alert
 from api.routers import status
 
+# import model registry
+from api.services.model_registry import registry
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -18,7 +20,13 @@ async def lifespan(app: FastAPI):
 
     print("Starting NetGuard-NG API...")
 
+    print("Creating database tables...")
     Base.metadata.create_all(bind=engine)
+
+    print("Loading Random forest model...")
+    registry.load()
+    
+    print("NetGuard-NG API is ready.")
 
     yield
 

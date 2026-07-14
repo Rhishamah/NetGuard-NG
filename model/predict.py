@@ -1,10 +1,12 @@
 import joblib
 import pandas as pd
+from pathlib import Path
 
-MODEL_DIR = "model/trained"
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_DIR = Path("model") /"trained"
 
 
-def load_models(model_dir=MODEL_DIR):
+def load_models(model_dir:str | Path = MODEL_DIR):
     """Load the trained Random Forest model (primary detector)."""
     rf = joblib.load(f"{model_dir}/random_forest.pkl")
     return rf
