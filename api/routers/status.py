@@ -1,21 +1,26 @@
 from fastapi import APIRouter
 
+from api.config import settings
+
 router = APIRouter(
-    prefix="",
-    tags=["Status"],
+    tags=["System"],
 )
 
 
 @router.get("/")
 def root():
+    """
+    Root endpoint.
+    """
     return {
-        "message": "Welcome to NetGuard-NG API",
-        "version": "1.0.0",
+        "message": f"Welcome to {settings.app_name}",
+        "version": settings.app_version,
     }
 
 
 @router.get("/status")
-def get_status():
+def status():
+    # Health check endpoint.
     return {
         "status": "healthy",
         "database": "connected",
