@@ -8,7 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
-
+.env
 # jupyter checkpoint files
 .ipynb_checkpoints/
 
@@ -16,3 +16,6 @@ wheels/
 data/*.csv
 model/trained/*.pkl
 data/cicids2017/
+
+# database
+*.db
