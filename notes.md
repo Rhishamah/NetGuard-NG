@@ -71,7 +71,25 @@ sudo cicflowmeter -i docker0 -c output.csv
 
 ---
 
-## Live CICFlowMeter output vs. original CICIDS 2017 training data
+## passlib + bcrypt version incompatibility
+
+**Package:** `passlib[bcrypt]`
+**Symptom:** Running any `passlib` bcrypt hash/verify call crashes with:
+```
+AttributeError: module 'bcrypt' has no attribute '__about__'
+...
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary
+```
+
+**Cause:** `passlib` is largely unmaintained and runs an internal self-test
+against a hardcoded string on first use to detect a bug in older bcrypt
+versions. This self-test breaks against bcrypt 4.x's changed internals —
+the error is unrelated to the actual password being hashed.
+
+**Fix:** Pin bcrypt below version 4:
+```bash
+uv add "bcrypt<4.0"
+```
 
 The Python `cicflowmeter` package's output isn't numerically identical to
 the original Java CICFlowMeter tool used to build CICIDS 2017, even though
