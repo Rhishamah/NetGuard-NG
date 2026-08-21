@@ -2,8 +2,7 @@ from pydantic import BaseModel, Field
 
 
 class AnalyzeRequest(BaseModel):
-    # Request body for starting a traffic analysis.
-
+    """Request body for starting a traffic analysis."""
 
     interface: str = Field(
         ...,
@@ -12,11 +11,10 @@ class AnalyzeRequest(BaseModel):
         examples=["eth0"],
     )
 
-    class AnalyzeResponse(BaseModel):
-    # Response returned after traffic analysis.
 
-        prediction: str
+class AnalyzeResponse(BaseModel):
+    """Response returned after traffic analysis."""
 
+    prediction: str
     confidence: float
-
     severity: str

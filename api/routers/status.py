@@ -20,16 +20,15 @@ def root():
 
 
 @router.get("/status")
-def status(db: Session = Depends(get_db)):
-    # Health check endpoint. verifies real system state, not just a static response
+def get_status(db: Session = Depends(get_db)):
     db_status = "connected"
     try:
         db.execute(text("SELECT 1"))
     except Exception:
         db_status = "unreachable"
 
-        return{
-            "status":"healthy" if db_status == "connected" else "degraded",
-            "database": db_status,
-            "app_version":settings.app_version,
-        }
+    return {
+        "status": "healthy" if db_status == "connected" else "degraded",
+        "database": db_status,
+        "app_version": settings.app_version,
+    }
