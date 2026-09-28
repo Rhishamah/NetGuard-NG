@@ -19,3 +19,6 @@ data/cicids2017/
 
 # database
 *.db
+*.db
+*.sqlite
+*.sqlite3
