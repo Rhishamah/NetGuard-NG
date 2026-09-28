@@ -13,8 +13,10 @@ class AnalyzeRequest(BaseModel):
 
 
 class AnalyzeResponse(BaseModel):
-    """Response returned after traffic analysis."""
-
     prediction: str
     confidence: float
     severity: str
+    source_ip: str
+    destination_ip: str
+    protocol: str
+    flows_analyzed: int

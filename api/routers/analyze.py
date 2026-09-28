@@ -12,7 +12,7 @@ from api.services.model_registry import registry
 
 router = APIRouter(prefix="/analyze", tags=["Analyze"], dependencies=[Depends(get_current_admin)])
 
-CAPTURE_PATH = "data/live_capture.csv"
+CAPTURE_PATH = "data/capture_test_d.csv"
 
 
 @router.post("/", response_model=AnalyzeResponse)
@@ -33,12 +33,12 @@ async def analyze(request: Request, body: AnalyzeRequest, db: Session = Depends(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     alert = Alert(
-        source_ip="N/A",
-        destination_ip="N/A",
-        protocol="N/A",
-        prediction=result["prediction"],
-        confidence=result["confidence"],
-        severity=result["severity"],
+    source_ip=result["source_ip"],
+    destination_ip=result["destination_ip"],
+    protocol=result["protocol"],
+    prediction=result["prediction"],
+    confidence=result["confidence"],
+    severity=result["severity"],
     )
     db.add(alert)
     db.commit()
