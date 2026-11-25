@@ -1,14 +1,16 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.auth import get_current_admin
 from api.limiter import limiter
 from api.services.capture_service import (
     run_live_capture,
     capture_lock,
+    new_capture_path,
 )
+from api.services.validation import validate_interface
 
 
 router = APIRouter(
@@ -24,12 +26,12 @@ _stop_event: asyncio.Event | None = None
 
 
 class CaptureRequest(BaseModel):
-    interface: str
-    duration_seconds: int = 60
-    output_path: str = "data/capture.csv"
+    interface: str = Field(..., min_length=1, max_length=32)
+    duration_seconds: int = Field(default=60, ge=1, le=300)
+    # No output_path: the server chooses the file (see new_capture_path).
 
 
-async def _run(request: CaptureRequest):
+async def _run(request: CaptureRequest, output_path: str):
     global _capture_running
 
     async with capture_lock:
@@ -37,7 +39,7 @@ async def _run(request: CaptureRequest):
             await run_live_capture(
                 request.interface,
                 request.duration_seconds,
-                request.output_path,
+                output_path,
                 _stop_event,
             )
         finally:
@@ -58,14 +60,17 @@ async def start_capture(
             detail="Capture already running",
         )
 
+    validate_interface(body.interface)
+    output_path = new_capture_path()
+
     _capture_running = True
     _stop_event = asyncio.Event()
 
-    _task = asyncio.create_task(_run(body))
+    _task = asyncio.create_task(_run(body, output_path))
 
     return {
         "message": "Capture started",
-        "output": body.output_path,
+        "output": output_path,
         "duration_seconds": body.duration_seconds,
         "interface": body.interface,
     }

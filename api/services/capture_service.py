@@ -2,9 +2,34 @@ import asyncio
 import os
 import signal
 import shutil
+from datetime import datetime
+from pathlib import Path
 
 
 capture_lock = asyncio.Lock()
+
+# All capture CSVs must live here. Paths are never taken from API requests.
+CAPTURE_DIR = Path("data") / "captures"
+
+
+def new_capture_path(prefix: str = "capture") -> str:
+    """Server-generated, timestamped capture path inside CAPTURE_DIR."""
+    CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    return str(CAPTURE_DIR / f"{prefix}_{stamp}.csv")
+
+
+def ensure_safe_output_path(output_path: str) -> str:
+    """Refuse any output path that resolves outside CAPTURE_DIR.
+
+    Defence in depth: run_live_capture deletes and rewrites this file, so a
+    caller-controlled path (for example ../../.env) must never reach it.
+    """
+    CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
+    resolved = Path(output_path).resolve()
+    if not resolved.is_relative_to(CAPTURE_DIR.resolve()):
+        raise RuntimeError(f"Capture output must be inside {CAPTURE_DIR}/")
+    return str(resolved)
 
 
 async def run_live_capture(
@@ -14,6 +39,8 @@ async def run_live_capture(
     stop_event: asyncio.Event | None = None,
 ) -> None:
     """Run CicFlowMeter for a fixed duration or until stop_event is set."""
+
+    output_path = ensure_safe_output_path(output_path)
 
     cicflowmeter_path = shutil.which("cicflowmeter")
 

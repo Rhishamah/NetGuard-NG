@@ -16,6 +16,7 @@ wheels/
 data/*.csv
 model/trained/*.pkl
 data/cicids2017/
+data/captures/
 
 # database
 *.db

@@ -7,17 +7,19 @@ from api.limiter import limiter
 from api.models.alert import Alert
 from api.schemas.analyze import AnalyzeRequest, AnalyzeResponse
 from api.services.analyzer import analyze_capture
-from api.services.capture_service import run_live_capture, capture_lock
+from api.services.capture_service import run_live_capture, capture_lock, CAPTURE_DIR
 from api.services.model_registry import registry
+from api.services.validation import validate_interface
 
 router = APIRouter(prefix="/analyze", tags=["Analyze"], dependencies=[Depends(get_current_admin)])
 
-CAPTURE_PATH = "data/capture_test_d.csv"
+CAPTURE_PATH = str(CAPTURE_DIR / "analyze_latest.csv")
 
 
 @router.post("/", response_model=AnalyzeResponse)
 @limiter.limit("5/minute")
 async def analyze(request: Request, body: AnalyzeRequest, db: Session = Depends(get_db)):
+    validate_interface(body.interface)
     if capture_lock.locked():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A capture is already running")
     try:
