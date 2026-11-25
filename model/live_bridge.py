@@ -12,21 +12,28 @@ are corrected here — see notes.md for the full diagnostic story.
 
   1. Flow Duration units: live tool reports seconds, training data uses
      microseconds.
-  2. Packet length convention: live tool includes TCP+IP header bytes in
-     packet length; training data excludes both (payload-only). The live
-     tool's own Fwd/Bwd Header Length columns only account for the TCP
-     header (20 bytes/packet), so a constant 20-byte IP header allowance
-     is added before subtracting.
+    2. Packet length convention: the live tool's packet-length features
+     include header bytes; the training data appears to count payload only
+     (CICIDS Portscan flows show ~0 bytes per SYN packet). The tool's own
+     Fwd/Bwd Header Length columns cover only the TCP header (20 bytes per
+     packet), so L2_L3_OVERHEAD_BYTES more are subtracted per packet. This
+     is an empirical calibration, not an exact derivation.
 
-Validated against a real nmap port scan: 69/87 (79%) of genuine
-scan-direction flows correctly detected post-fix. The remaining 21% are
-flows with zero backward packets (no response from target) — a real
-information limitation, not a bug in this mapping.
+Validated on one nmap SYN scan of a local DVWA container (87 scan-direction
+flows) and a 21-flow benign baseline: 69/87 scan flows flagged, 0/21 benign
+flagged. The 18 unflagged scan flows all have zero backward packets (no
+reply from the target); missing bidirectional signal is the likely cause but
+was not tested directly. The overhead constant was tuned on this same
+capture, so treat these numbers as calibration, not independent validation.
 """
 
 import pandas as pd
 
-IP_HEADER_BYTES = 20  # standard IPv4 header, no options
+# Per-packet bytes subtracted on top of the tool's reported TCP header length.
+# Ethernet (14) + IP (20) = 34, plus ~6 for TCP options (nmap SYN carries 4,
+# timestamped ACKs up to 12). Calibrated empirically against the nmap SYN-scan
+# capture, not derived exactly.
+L2_L3_OVERHEAD_BYTES = 40  # standard IPv4 header, no options
 
 # Maps live cicflowmeter's snake_case column names to the Title Case
 # column names the trained models expect (from CICIDS 2017 / CICFlowMeter).
@@ -85,6 +92,7 @@ TIME_BASED_COLUMNS = [
     'Bwd IAT Total', 'Bwd IAT Mean', 'Bwd IAT Std', 'Bwd IAT Max', 'Bwd IAT Min',
     'Active Mean', 'Active Std', 'Active Max', 'Active Min',
     'Idle Mean', 'Idle Std', 'Idle Max', 'Idle Min',
+    'Total TCP Flow Time',
 ]
 
 
@@ -110,21 +118,23 @@ def fix_duration_units(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def fix_packet_length_headers(df: pd.DataFrame) -> pd.DataFrame:
-    """Correct packet-length features for the header-inclusion mismatch.
+    """Correct packet-length features for header inclusion.
 
-    The live tool's Fwd/Bwd Header Length columns only count the TCP
-    header (20 bytes/packet); the original CICFlowMeter excludes both
-    the TCP header AND the IP header from packet length. This adds the
-    missing 20-byte IP header allowance before subtracting total header
-    overhead from every packet-length-derived feature.
-    """
+The live tool's packet-length features include header bytes; the training
+data appears to count payload only. Fwd/Bwd Header Length report just the
+TCP header (20 bytes/packet), so L2_L3_OVERHEAD_BYTES more are subtracted
+per packet. 34 would cover Ethernet (14) + IP (20); 40 also absorbs typical
+TCP option bytes (an nmap SYN frame is 58 bytes: 14 + 20 + 24). The value
+was chosen empirically on an nmap SYN-scan capture; TCP options vary by
+packet, so it is an approximation.
+"""
     df = df.copy()
 
     fwd_pkt_count = df['Total Fwd Packet'].replace(0, 1)
     bwd_pkt_count = df['Total Bwd packets'].replace(0, 1)
 
-    fwd_total_hdr = df['Fwd Header Length'] + (IP_HEADER_BYTES * df['Total Fwd Packet'])
-    bwd_total_hdr = df['Bwd Header Length'] + (IP_HEADER_BYTES * df['Total Bwd packets'])
+    fwd_total_hdr = df['Fwd Header Length'] + (L2_L3_OVERHEAD_BYTES * df['Total Fwd Packet'])
+    bwd_total_hdr = df['Bwd Header Length'] + (L2_L3_OVERHEAD_BYTES * df['Total Bwd packets'])
     fwd_hdr_per_pkt = fwd_total_hdr / fwd_pkt_count
     bwd_hdr_per_pkt = bwd_total_hdr / bwd_pkt_count
 
@@ -149,8 +159,11 @@ def fix_packet_length_headers(df: pd.DataFrame) -> pd.DataFrame:
     df['Bwd Segment Size Avg'] = df['Bwd Packet Length Mean']
 
     total_bytes = df['Total Length of Fwd Packet'] + df['Total Length of Bwd Packet']
-    duration_sec = df['Flow Duration'].replace(0, 1e-9)
-    df['Flow Bytes/s'] = total_bytes / duration_sec
+    # 'Flow Duration' is already in microseconds here (fix_duration_units runs
+    # first), so convert to bytes per *second* explicitly. A zero duration is
+    # replaced by 1 nanosecond (1e-3 us), matching the earlier behaviour.
+    duration_us = df['Flow Duration'].replace(0, 1e-3)
+    df['Flow Bytes/s'] = total_bytes * 1_000_000 / duration_us
 
     return df
 
