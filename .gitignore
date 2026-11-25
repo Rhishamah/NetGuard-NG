@@ -23,3 +23,6 @@ data/captures/
 *.db
 *.sqlite
 *.sqlite3
+
+data/*
+!data/.gitkeep
