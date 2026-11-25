@@ -4,6 +4,7 @@ from sqlalchemy import text
 
 from api.config import settings
 from api.dependencies import get_db
+from api.services.model_registry import registry
 
 router = APIRouter(
     tags=["System"],
@@ -27,8 +28,11 @@ def get_status(db: Session = Depends(get_db)):
     except Exception:
         db_status = "unreachable"
 
+    model_status = "loaded" if registry.random_forest is not None else "not_loaded"
+
     return {
-        "status": "healthy" if db_status == "connected" else "degraded",
+        "status": "healthy" if (db_status == "connected" and model_status == "loaded") else "degraded",
         "database": db_status,
+        "model": model_status,
         "app_version": settings.app_version,
     }
