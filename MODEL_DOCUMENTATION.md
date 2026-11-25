@@ -191,24 +191,41 @@ rather than a failure of the algorithm in general.
 
 ## 5. Known limitations
 
-- **Live traffic compatibility:** the trained models expect CICFlowMeter's
-  84-feature flow schema. A working bridge from live-captured traffic
-  (via the Python `cicflowmeter` package) to this schema has been built
-  and validated — see `notes.md` for full details. Two measurement-
-  convention mismatches between the live tool and the original training
-  data were identified and fixed (duration units in seconds vs.
-  microseconds; packet length including vs. excluding IP/TCP headers).
-  Validated against a real `nmap` port scan of a Docker-hosted target:
-  **69 of 87 genuine scan-direction flows (79%) correctly detected**,
-  at ~0.82 confidence. The remaining 21% are flows with zero backward
-  packets (no response received from the target) — a real information
-  limitation (these flows carry no bidirectional signal for the model
-  to use), not a remaining bug in the mapping pipeline.
-- **Dataset age:** CICIDS 2017 was captured in a lab setting years ago.
-  Real-world traffic patterns and attack tooling have evolved since; the
-  model's strong benchmark performance doesn't guarantee equivalent
-  performance against novel, modern attack techniques.
-- **Class imbalance in Botnet labels:** with under 1% of training data
-  labeled Botnet/Botnet-Attempted, the model likely has weaker detection
-  recall for this specific attack type compared to Portscan/DDoS, which
-  are much better represented.
+- **Live traffic compatibility.** The trained models expect CICFlowMeter's
+  84-feature flow schema. `model/live_bridge.py` maps live captures from the
+  Python `cicflowmeter` package onto that schema and corrects two measurement
+  differences between the live tool and the training data: duration/timing
+  units (seconds vs. microseconds) and packet-length convention (the live
+  tool's features include header bytes; the training data appears to count
+  payload only). The packet-length correction subtracts an empirically
+  calibrated 40 bytes per packet beyond the tool's reported TCP header length.
+  That constant was tuned on one early capture, so that capture is a
+  calibration result, not independent validation. See `notes.md` for the
+  diagnostic history.
+- **Evaluation summary** (full method and tables in `EVALUATION.md`). On three
+  fresh nmap SYN scans of a Docker-hosted DVWA container, 72-77% of
+  scan-direction flows were flagged (median attack probability 0.82). Flows in
+  which the target replied were flagged 99% of the time. A 167-flow benign
+  baseline (HTTP and ICMP to the same container) had 0 false positives.
+- **Blind spot: scan flows with no reply.** Scan flows with zero backward
+  packets were never flagged (0 of 351 across three captures). The training
+  data explains this: only 2 of 159,066 Portscan flows in the Friday file
+  (0.0013%) have zero backward packets, so the model has effectively never
+  seen a scan without replies. A scan against filtered (silently dropping)
+  ports would therefore be missed at the flow level. This is a limit of the
+  training data, not proof of a limit of the features; adding per-source
+  aggregate features (for example distinct destination ports per source per
+  time window) or training on live captures that include no-reply scans are
+  untested remedies.
+- **Flow Bytes/s unit fix.** An earlier version of `live_bridge.py` recomputed
+  `Flow Bytes/s` with a factor-of-1,000,000 unit error (bytes per microsecond
+  instead of per second). It is fixed and unit-tested. It changed nothing on
+  the scan captures or the benign baseline (identical results with and
+  without the fix), because those flows carry almost no payload, so no live
+  capture has yet exercised the fix.
+- **Narrow validation.** Only nmap SYN scans against one lab target were
+  tested end to end. TCP-connect scans, UDP scans, DDoS-style floods and
+  higher-volume benign traffic are untested, and the model was trained on a
+  single day (Friday) of CICIDS 2017.
+- **Isolation Forest is not used by the API.** Only the Random Forest is
+  loaded and served.
