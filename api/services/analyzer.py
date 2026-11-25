@@ -22,7 +22,7 @@ def analyze_capture(csv_path: str, rf) -> dict:
         return {
             "prediction": "BENIGN",
             "confidence": 0.0,
-            "severity": "LOW",
+            "severity": "normal",
             "source_ip": "",
             "destination_ip": "",
             "protocol": "",
