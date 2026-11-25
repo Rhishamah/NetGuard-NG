@@ -140,10 +140,14 @@ wait
 ```bash
 curl -X POST http://127.0.0.1:8000/capture/start \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"interface":"docker0","duration_seconds":20,"output_path":"data/capture_test.csv"}'
+  -d '{"interface":"docker0","duration_seconds":20}'
 ```
 
-Run scans during the 20 seconds, then `wc -l data/capture_test.csv`.
+The response includes an `output` path under `data/captures/` (the server picks
+the file; clients can no longer choose a path). Run scans during the 20
+seconds, then `wc -l` that file. `/analyze` always writes
+`data/captures/analyze_latest.csv`, which you can re-score with the snippet in
+section 3.
 
 ---
 
@@ -163,6 +167,9 @@ Run scans during the 20 seconds, then `wc -l data/capture_test.csv`.
 | Port 8000 already in use | `pkill -f uvicorn`, then restart |
 | `model/trained/` is empty | Models are gitignored. Download `friday.csv` to `data/cicids2017/` and run `uv run python -m model.detector` |
 | API restarts mid-capture | Run uvicorn without `--reload` while testing capture endpoints |
+| Old behaviour after editing code (e.g. `KeyError: 'source_ip'`) | A stale uvicorn is still serving the old code. `sudo ss -ltnp 'sport = :8000'`, check the PID's start time with `ps -o pid,user,lstart,cmd -p PID`, stop it, restart without sudo. |
+| `/token` returns 429 | Login is limited to 5 attempts per minute per address. Wait a minute. |
+| 422 on `/capture/start` or `/analyze` | `interface` must be a real interface name (`ip -br link`). |
 
 Never run `sudo cicflowmeter` or any `sudo` command that writes into `data/`:
 it creates root-owned files that the API process then cannot overwrite.
@@ -171,17 +178,10 @@ it creates root-owned files that the API process then cannot overwrite.
 
 ## 6. Known open issues
 
-- `/analyze` raised `KeyError: 'source_ip'` at `analyze.py` line 39 even though
-  `analyzer.py` always returns that key, which suggests a stale module or
-  duplicate file is being imported. Diagnostic: add this right after
-  `result = analyze_capture(...)`:
-
-  ```python
-  import inspect
-  print(inspect.getsourcefile(analyze_capture), list(result.keys()), flush=True)
-  ```
-
-- API-triggered capture has not yet been confirmed to catch scan traffic. The
-  standalone `cicflowmeter` routine in section 3 works reliably.
-- `/status` does not yet check that the model is actually loaded.
+- Resolved: the `KeyError: 'source_ip'` came from a stale uvicorn process.
+  After a restart, `/analyze` on an nmap SYN scan of DVWA returned ATTACK
+  (confidence 0.83, 495 flows analyzed).
+- Only SYN scans have been validated end to end. TCP-connect, UDP and flood
+  traffic are untested, and `/analyze` has not yet been run on benign traffic
+  after the `Flow Bytes/s` fix (re-run the baseline).
 - CORS middleware is needed before the Stage 5 dashboard can call the API.
