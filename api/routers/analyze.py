@@ -34,15 +34,17 @@ async def analyze(request: Request, body: AnalyzeRequest, db: Session = Depends(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-    alert = Alert(
-    source_ip=result["source_ip"],
-    destination_ip=result["destination_ip"],
-    protocol=result["protocol"],
-    prediction=result["prediction"],
-    confidence=result["confidence"],
-    severity=result["severity"],
-    )
-    db.add(alert)
-    db.commit()
+    # Only attacks become alerts; benign or empty captures are just returned.
+    if result["prediction"] == "ATTACK":
+        alert = Alert(
+            source_ip=result["source_ip"],
+            destination_ip=result["destination_ip"],
+            protocol=result["protocol"],
+            prediction=result["prediction"],
+            confidence=result["confidence"],
+            severity=result["severity"],
+        )
+        db.add(alert)
+        db.commit()
 
     return AnalyzeResponse(**result)
